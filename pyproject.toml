@@ -1,0 +1,17 @@
+[project]
+name = "gh-notifications"
+version = "0.1.0"
+description = "TUI for GitHub notifications powered by gh CLI"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "textual>=8.2.1",
+]
+
+[project.scripts]
+gh-notifications = "gh_notifications.app:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.8",
+]
