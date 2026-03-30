@@ -13,7 +13,19 @@ A terminal UI for GitHub notifications, built with [Textual](https://textual.tex
 uv tool install git+https://github.com/denrou/gh-notifications.git
 ```
 
-Or clone and run locally:
+To use it as a `gh` subcommand, add an alias:
+
+```bash
+gh alias set notifications --shell 'gh-notifications'
+```
+
+Then run it with:
+
+```bash
+gh notifications
+```
+
+### From source
 
 ```bash
 git clone https://github.com/denrou/gh-notifications.git
