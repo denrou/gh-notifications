@@ -243,7 +243,7 @@ class NotificationsApp(App[None]):
             return None
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         for n in self._filtered:
-            if n.id == str(row_key):
+            if n.id == row_key.value:
                 return n
         return None
 
