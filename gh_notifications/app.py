@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -10,13 +11,29 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Static
 
 from gh_notifications.gh import (
+    REVIEW_DECISION_LABELS,
+    REVIEW_STATE_LABELS,
     Notification,
     fetch_notifications,
+    fetch_pull_request_info,
     mark_all_read,
     mark_as_read,
     open_in_browser,
     unsubscribe,
 )
+
+STATE_STYLES = {
+    "merged": "magenta",
+    "closed": "red",
+    "draft": "dim",
+    "open": "green",
+}
+
+REVIEW_STYLES = {
+    "APPROVED": "green",
+    "CHANGES_REQUESTED": "red",
+    "REVIEW_REQUIRED": "yellow",
+}
 
 REASON_LABELS = {
     "assign": "Assigned",
@@ -44,7 +61,9 @@ class FilterInput(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="filter-dialog"):
-            yield Label("Filter notifications (regex on repo, title, type, reason):")
+            yield Label(
+                "Filter notifications (regex on repo, title, state, review, reason):"
+            )
             yield Input(
                 value=self._current,
                 placeholder="e.g. centreon|review",
@@ -77,18 +96,46 @@ class DetailScreen(ModalScreen[None]):
         n = self._notif
         browser_url = n.html_url() or "N/A"
         text = (
-            f"[b]Title:[/b]   {n.title}\n"
-            f"[b]Repo:[/b]    {n.repo}\n"
-            f"[b]Type:[/b]    {n.type}\n"
-            f"[b]Reason:[/b]  {REASON_LABELS.get(n.reason, n.reason)}\n"
-            f"[b]Unread:[/b]  {'Yes' if n.unread else 'No'}\n"
-            f"[b]Updated:[/b] {n.updated_at}\n"
-            f"[b]ID:[/b]      {n.id}\n"
-            f"[b]URL:[/b]     {browser_url}\n"
+            f"[b]Title:[/b]    {n.title}\n"
+            f"[b]Repo:[/b]     {n.repo}\n"
+            f"[b]Type:[/b]     {n.type}\n"
+            f"[b]Reason:[/b]   {REASON_LABELS.get(n.reason, n.reason)}\n"
+            f"[b]Unread:[/b]   {'Yes' if n.unread else 'No'}\n"
+            f"[b]Updated:[/b]  {n.updated_at}\n"
+            f"[b]Last read:[/b] {n.last_read_at or 'never'}\n"
         )
+        if n.pr:
+            text += "\n" + self._pr_details(n)
+        text += f"\n[b]ID:[/b]       {n.id}\n[b]URL:[/b]      {browser_url}\n"
         with Vertical(id="detail-dialog"):
             yield Static(text, markup=True)
             yield Label("[dim]Press Escape or q to close[/dim]")
+
+    @staticmethod
+    def _pr_details(n: Notification) -> str:
+        pr = n.pr
+        assert pr is not None
+        review = "none"
+        if pr.last_review_state:
+            who = pr.last_review_author or "unknown"
+            what = REVIEW_STATE_LABELS.get(pr.last_review_state, pr.last_review_state)
+            review = f"{who} {what} at {pr.last_review_at}"
+            if n.has_new_review:
+                review += " [b yellow](new)[/b yellow]"
+        comment = "none"
+        if pr.last_comment_at:
+            who = pr.last_comment_author or "unknown"
+            comment = f"{who} at {pr.last_comment_at}"
+            if n.has_new_comment:
+                comment += " [b yellow](new)[/b yellow]"
+        decision = pr.review_decision or "none"
+        return (
+            f"[b]State:[/b]    {pr.state_label}\n"
+            f"[b]Decision:[/b] {decision.lower().replace('_', ' ')}\n"
+            f"[b]CI:[/b]       {(pr.ci_state or 'none').lower()}\n"
+            f"[b]Review:[/b]   {review}\n"
+            f"[b]Comment:[/b]  {comment}\n"
+        )
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -124,7 +171,7 @@ class NotificationsApp(App[None]):
         align: center middle;
         width: 80;
         height: auto;
-        max-height: 20;
+        max-height: 26;
         border: thick $accent;
         padding: 1 2;
         background: $surface;
@@ -164,7 +211,17 @@ class NotificationsApp(App[None]):
         table = self.query_one("#notifications-table", DataTable)
         table.cursor_type = "row"
         table.zebra_stripes = True
-        table.add_columns(" ", "ID", "Repo", "Type", "Reason", "Title", "Updated")
+        table.add_columns(
+            " ",
+            "ID",
+            "Repo",
+            "State",
+            "Review",
+            "Activity",
+            "Reason",
+            "Title",
+            "Updated",
+        )
         self._load_notifications()
 
     @work(thread=True)
@@ -175,6 +232,16 @@ class NotificationsApp(App[None]):
         except RuntimeError as e:
             self._update_status(str(e))
             return
+        # Render right away, then enrich pull requests with a second request.
+        self.call_from_thread(self._apply_filter_and_render)
+        self._update_status("Fetching pull request details...")
+        try:
+            info = fetch_pull_request_info(self._notifications)
+        except RuntimeError as e:
+            self._update_status(str(e))
+            return
+        for n in self._notifications:
+            n.pr = info.get(n.id)
         self.call_from_thread(self._apply_filter_and_render)
 
     def _update_status(self, text: str) -> None:
@@ -199,7 +266,9 @@ class NotificationsApp(App[None]):
                 for n in self._notifications
                 if pat.search(n.repo)
                 or pat.search(n.title)
-                or pat.search(n.type)
+                or pat.search(n.state_label)
+                or pat.search(n.review_label)
+                or pat.search(n.activity_label)
                 or pat.search(n.reason)
             ]
         else:
@@ -213,7 +282,9 @@ class NotificationsApp(App[None]):
                 sel,
                 n.id,
                 n.repo_short,
-                n.type,
+                self._styled_state(n),
+                self._styled_review(n),
+                n.activity_label,
                 REASON_LABELS.get(n.reason, n.reason),
                 n.title,
                 n.updated_date,
@@ -228,6 +299,28 @@ class NotificationsApp(App[None]):
         self.query_one("#status-bar", Static).update(
             f"{shown}/{total} notifications{filter_info}{sel_info}"
         )
+
+    @staticmethod
+    def _styled_state(n: Notification) -> Text:
+        label = n.state_label
+        if not n.pr:
+            return Text(label)
+        style = STATE_STYLES.get(label, "")
+        return Text(label, style=style)
+
+    @staticmethod
+    def _styled_review(n: Notification) -> Text:
+        if not n.pr:
+            return Text("")
+        text = Text(
+            REVIEW_DECISION_LABELS.get(n.pr.review_decision or "", ""),
+            style=REVIEW_STYLES.get(n.pr.review_decision or "", ""),
+        )
+        if n.pr.ci_failed:
+            if text:
+                text.append(" ")
+            text.append("CI!", style="bold red")
+        return text
 
     def action_cursor_down(self) -> None:
         table = self.query_one("#notifications-table", DataTable)
@@ -339,6 +432,11 @@ class NotificationsApp(App[None]):
         n = self._get_current_notification()
         if n:
             open_in_browser(n)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        # The focused DataTable consumes Enter before app bindings run, so the
+        # detail screen is opened from its row selection event instead.
+        self.action_show_detail()
 
     def action_show_detail(self) -> None:
         n = self._get_current_notification()

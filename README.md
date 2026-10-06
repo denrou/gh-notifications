@@ -33,6 +33,18 @@ cd gh-notifications
 uv run gh-notifications
 ```
 
+## Columns
+
+For pull request notifications, the list shows the state of the pull request itself, fetched in one batched GraphQL request after the notifications load:
+
+| Column     | Values                                                        |
+|------------|---------------------------------------------------------------|
+| `State`    | `open`, `draft`, `merged`, `closed` (subject type otherwise)  |
+| `Review`   | `approved`, `changes`, `pending`, plus `CI!` when checks fail |
+| `Activity` | `review`, `comment` or `review+comment` newer than your last read of the thread |
+
+The detail view (`Enter`) adds the latest reviewer and verdict, the latest commenter, and the CI state.
+
 ## Keybindings
 
 | Key     | Action                  |
