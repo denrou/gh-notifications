@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
+from importlib.metadata import version
+
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
@@ -461,6 +464,16 @@ class NotificationsApp(App[None]):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="gh-notifications",
+        description="TUI for GitHub notifications powered by gh CLI.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {version('gh-notifications')}",
+    )
+    parser.parse_args()
     app = NotificationsApp()
     app.run()
 

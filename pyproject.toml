@@ -3,6 +3,9 @@ name = "gh-notifications"
 version = "0.1.0"
 description = "TUI for GitHub notifications powered by gh CLI"
 readme = "README.md"
+authors = [{ name = "Denis Roussel", email = "deroussel@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = [
     "textual>=8.2.1",
@@ -10,6 +13,10 @@ dependencies = [
 
 [project.scripts]
 gh-notifications = "gh_notifications.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [

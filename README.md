@@ -5,13 +5,24 @@ A terminal UI for GitHub notifications, built with [Textual](https://textual.tex
 ## Prerequisites
 
 - [gh](https://cli.github.com/) installed and authenticated (`gh auth login`)
-- [uv](https://docs.astral.sh/uv/) for dependency management
+- Python 3.14+
+- [uv](https://docs.astral.sh/uv/)
 
 ## Install
 
+Latest release:
+
 ```bash
-uv tool install git+https://github.com/denrou/gh-notifications.git
+uv tool install gh-notifications --from git+https://github.com/denrou/gh-notifications.git@v0.1.0
 ```
+
+Or the tip of `main`:
+
+```bash
+uv tool install gh-notifications --from git+https://github.com/denrou/gh-notifications.git
+```
+
+Upgrade with `uv tool upgrade gh-notifications`, or re-run the install command with a newer tag.
 
 To use it as a `gh` subcommand, add an alias:
 
@@ -61,6 +72,16 @@ The detail view (`Enter`) adds the latest reviewer and verdict, the latest comme
 | `o`     | Open in browser         |
 | `g`     | Refresh                 |
 | `q`     | Quit                    |
+
+## Releasing
+
+Bump `version` in `pyproject.toml`, commit, then push a matching tag:
+
+```bash
+git tag v0.2.0 && git push origin main v0.2.0
+```
+
+The [Release workflow](.github/workflows/release.yml) checks that the tag matches the version, lints, builds the sdist and wheel, and publishes them as a GitHub Release with generated notes.
 
 ## License
 
