@@ -21,6 +21,15 @@ Two-module design inside `gh_notifications/`:
 
 Entry point: `gh_notifications.app:main`.
 
+## Releasing
+
+Installation is `uv tool install` from a git tag; there is no PyPI or Homebrew publishing.
+
+1. Bump `version` in `pyproject.toml` and commit.
+2. Tag and push: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
+3. `.github/workflows/release.yml` runs on the tag: it fails if the tag does not match the project version, lints with ruff, builds the sdist and wheel with `uv build`, and publishes them as a GitHub Release with generated notes.
+4. Update the pinned tag in the README install command.
+
 ## Notes
 
 - Browser opening uses macOS `open` command (not cross-platform yet).
