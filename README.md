@@ -78,7 +78,7 @@ The detail view (`Enter`) adds the latest reviewer and verdict, the latest comme
 Bump `version` in `pyproject.toml`, commit, then push a matching tag:
 
 ```bash
-git tag v0.2.0 && git push origin main v0.2.0
+git tag -a v0.2.0 -m "v0.2.0" && git push origin main v0.2.0
 ```
 
 The [Release workflow](.github/workflows/release.yml) checks that the tag matches the version, lints, builds the sdist and wheel, and publishes them as a GitHub Release with generated notes.
