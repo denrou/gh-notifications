@@ -1,6 +1,6 @@
 [project]
 name = "gh-notifications"
-version = "0.1.0"
+version = "0.2.0"
 description = "TUI for GitHub notifications powered by gh CLI"
 readme = "README.md"
 authors = [{ name = "Denis Roussel", email = "deroussel@gmail.com" }]

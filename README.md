@@ -13,7 +13,7 @@ A terminal UI for GitHub notifications, built with [Textual](https://textual.tex
 Latest release:
 
 ```bash
-uv tool install gh-notifications --from git+https://github.com/denrou/gh-notifications.git@v0.1.0
+uv tool install gh-notifications --from git+https://github.com/denrou/gh-notifications.git@v0.2.0
 ```
 
 Or the tip of `main`:
