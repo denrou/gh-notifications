@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 from importlib.metadata import version
 
 from rich.text import Text
@@ -197,12 +198,13 @@ class NotificationsApp(App[None]):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, on_change: str | None = None) -> None:
         super().__init__()
         self._notifications: list[Notification] = []
         self._filtered: list[Notification] = []
         self._selected: set[str] = set()
         self._filter_text: str = ""
+        self._on_change = on_change
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -376,21 +378,20 @@ class NotificationsApp(App[None]):
     def _do_mark_read(self, ids: list[str]) -> None:
         self._update_status(f"Marking {len(ids)} notification(s) as read...")
         errors = []
+        read_set = set()
         for tid in ids:
             try:
                 mark_as_read(tid)
             except RuntimeError as e:
                 errors.append(str(e))
+            else:
+                read_set.add(tid)
 
-        # Remove from local state
-        read_set = set(ids) - {e.split()[2] for e in errors}  # rough, but ok
+        # Only what GitHub accepted leaves the list: a failed one is still unread.
         self._notifications = [n for n in self._notifications if n.id not in read_set]
         self._selected -= read_set
 
-        if errors:
-            self._update_status(f"Errors: {'; '.join(errors)}")
-        else:
-            self.call_from_thread(self._apply_filter_and_render)
+        self._finish_change(bool(read_set), errors)
 
     def action_mark_all_read(self) -> None:
         self._do_mark_all_read()
@@ -400,11 +401,12 @@ class NotificationsApp(App[None]):
         self._update_status("Marking all notifications as read...")
         try:
             mark_all_read()
-            self._notifications.clear()
-            self._selected.clear()
-            self.call_from_thread(self._apply_filter_and_render)
         except RuntimeError as e:
             self._update_status(str(e))
+            return
+        self._notifications.clear()
+        self._selected.clear()
+        self._finish_change(True, [])
 
     def action_unsubscribe(self) -> None:
         ids = self._get_target_ids()
@@ -415,21 +417,45 @@ class NotificationsApp(App[None]):
     def _do_unsubscribe(self, ids: list[str]) -> None:
         self._update_status(f"Unsubscribing from {len(ids)} thread(s)...")
         errors = []
+        done_set = set()
         for tid in ids:
             try:
                 unsubscribe(tid)
                 mark_as_read(tid)
             except RuntimeError as e:
                 errors.append(str(e))
+            else:
+                done_set.add(tid)
 
-        done_set = set(ids)
         self._notifications = [n for n in self._notifications if n.id not in done_set]
         self._selected -= done_set
 
+        self._finish_change(bool(done_set), errors)
+
+    def _finish_change(self, changed: bool, errors: list[str]) -> None:
+        """Render the new state, run --on-change if GitHub changed, report errors."""
+        self.call_from_thread(self._apply_filter_and_render)
+        if changed and (failure := self._run_on_change()):
+            errors = [*errors, failure]
         if errors:
             self._update_status(f"Errors: {'; '.join(errors)}")
-        else:
-            self.call_from_thread(self._apply_filter_and_render)
+
+    def _run_on_change(self) -> str | None:
+        """Run the --on-change command; return why it failed, if it did."""
+        if not self._on_change:
+            return None
+        # Deliberate: its output would draw over the TUI, so it goes nowhere.
+        result = subprocess.run(
+            self._on_change,
+            shell=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if result.returncode != 0:
+            return f"--on-change command exited with {result.returncode}"
+        return None
 
     def action_open_browser(self) -> None:
         n = self._get_current_notification()
@@ -473,8 +499,14 @@ def main() -> None:
         action="version",
         version=f"%(prog)s {version('gh-notifications')}",
     )
-    parser.parse_args()
-    app = NotificationsApp()
+    parser.add_argument(
+        "--on-change",
+        metavar="COMMAND",
+        help="shell command to run after notifications are marked read or "
+        "unsubscribed, e.g. to refresh a status bar showing the unread count",
+    )
+    args = parser.parse_args()
+    app = NotificationsApp(on_change=args.on_change)
     app.run()
 
 

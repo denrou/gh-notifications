@@ -27,7 +27,7 @@ Upgrade with `uv tool upgrade gh-notifications`, or re-run the install command w
 To use it as a `gh` subcommand, add an alias:
 
 ```bash
-gh alias set notifications --shell 'gh-notifications'
+gh alias set notifications --shell 'gh-notifications "$@"'
 ```
 
 Then run it with:
@@ -48,30 +48,40 @@ uv run gh-notifications
 
 For pull request notifications, the list shows the state of the pull request itself, fetched in one batched GraphQL request after the notifications load:
 
-| Column     | Values                                                        |
-|------------|---------------------------------------------------------------|
-| `State`    | `open`, `draft`, `merged`, `closed` (subject type otherwise)  |
-| `Review`   | `approved`, `changes`, `pending`, plus `CI!` when checks fail |
+| Column     | Values                                                                          |
+| ---------- | ------------------------------------------------------------------------------- |
+| `State`    | `open`, `draft`, `merged`, `closed` (subject type otherwise)                    |
+| `Review`   | `approved`, `changes`, `pending`, plus `CI!` when checks fail                   |
 | `Activity` | `review`, `comment` or `review+comment` newer than your last read of the thread |
 
 The detail view (`Enter`) adds the latest reviewer and verdict, the latest commenter, and the CI state.
 
 ## Keybindings
 
-| Key     | Action                  |
-|---------|-------------------------|
-| `j`/`k` | Navigate down/up       |
+| Key     | Action                    |
+| ------- | ------------------------- |
+| `j`/`k` | Navigate down/up          |
 | `Enter` | Show notification details |
-| `s`     | Select/deselect row     |
-| `a`     | Select/deselect all     |
-| `/`     | Filter (regex)          |
-| `c`     | Clear filter            |
-| `r`     | Mark as read            |
-| `R`     | Mark all as read        |
-| `u`     | Unsubscribe             |
-| `o`     | Open in browser         |
-| `g`     | Refresh                 |
-| `q`     | Quit                    |
+| `s`     | Select/deselect row       |
+| `a`     | Select/deselect all       |
+| `/`     | Filter (regex)            |
+| `c`     | Clear filter              |
+| `r`     | Mark as read              |
+| `R`     | Mark all as read          |
+| `u`     | Unsubscribe               |
+| `o`     | Open in browser           |
+| `g`     | Refresh                   |
+| `q`     | Quit                      |
+
+## Status bars
+
+A status bar that shows your unread count polls GitHub on its own schedule, so it lags behind what you do here. `--on-change` runs a shell command after notifications are marked read or unsubscribed (`r`, `R`, `u`), so the bar can refresh right away:
+
+```bash
+gh alias set notifications --shell 'gh-notifications --on-change ~/bin/refresh-status-bar "$@"'
+```
+
+The command's output is discarded, since it would draw over the screen; if it fails, its exit code shows in the status line.
 
 ## Releasing
 
